@@ -1,0 +1,106 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ResumeStatus {
+  UPLOADED
+  PROCESSING
+  ANALYZED
+  FAILED
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  EXPIRED
+  REFUNDED
+}
+
+model User {
+  id           String    @id @default(uuid())
+  email        String    @unique
+  passwordHash String
+  name         String
+  creditsLeft  Int       @default(1)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  resumes      Resume[]
+  payments     Payment[]
+}
+
+model Resume {
+  id           String          @id @default(uuid())
+  userId       String
+  user         User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title        String
+  originalText String          @db.Text
+  status       ResumeStatus    @default(UPLOADED)
+  shareToken   String?         @unique
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  versions     ResumeVersion[]
+  analyses     Analysis[]
+  jobMatches   JobMatch[]
+  coverLetters CoverLetter[]
+}
+
+model ResumeVersion {
+  id        String   @id @default(uuid())
+  resumeId  String
+  resume    Resume   @relation(fields: [resumeId], references: [id], onDelete: Cascade)
+  label     String
+  content   String   @db.Text
+  rewritten Json?
+  createdAt DateTime @default(now())
+}
+
+model Analysis {
+  id                String   @id @default(uuid())
+  resumeId          String
+  resume            Resume   @relation(fields: [resumeId], references: [id], onDelete: Cascade)
+  atsScore          Int
+  atsReport         Json
+  rewrittenResume   Json
+  recruiterFeedback Json
+  innovationTips    Json
+  createdAt         DateTime @default(now())
+}
+
+model JobMatch {
+  id              String   @id @default(uuid())
+  resumeId        String
+  resume          Resume   @relation(fields: [resumeId], references: [id], onDelete: Cascade)
+  jobDescription  String   @db.Text
+  matchScore      Int
+  missingKeywords Json
+  suggestions     Json
+  createdAt       DateTime @default(now())
+}
+
+model CoverLetter {
+  id        String   @id @default(uuid())
+  resumeId  String
+  resume    Resume   @relation(fields: [resumeId], references: [id], onDelete: Cascade)
+  content   String   @db.Text
+  createdAt DateTime @default(now())
+}
+
+model Payment {
+  id              String        @id @default(uuid())
+  userId          String
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  abacateId       String        @unique
+  amountCents     Int
+  status          PaymentStatus @default(PENDING)
+  creditsGranted  Int           @default(1)
+  pixQrCode       String?       @db.Text
+  pixCopyPaste    String?       @db.Text
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+}
