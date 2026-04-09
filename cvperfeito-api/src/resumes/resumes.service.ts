@@ -16,6 +16,7 @@ import {
   AlignmentType,
   BorderStyle,
 } from 'docx';
+import { hasFeature, PLANS } from '../commom/plans.config';
 
 @Injectable()
 export class ResumesService {
@@ -61,11 +62,20 @@ export class ResumesService {
   const user = await this.prisma.user.findUnique({ where: { id: userId } });
   if (!user) throw new NotFoundException('Usuário não encontrado');
 
-  const requiredCredits = includeEnglish ? 2 : 1;
-  if (user.creditsLeft < requiredCredits) {
+  if (user.creditsLeft < 1) {
     throw new ForbiddenException(
-      `Você precisa de ${requiredCredits} crédito(s) para esta análise. Saldo atual: ${user.creditsLeft}.`,
+      'Você não tem créditos disponíveis. Compre um plano para continuar.',
     );
+  }
+
+  if (includeEnglish && !hasFeature(user.plan, 'canGenerateEnglishVersion')) {
+    throw new ForbiddenException(
+      'Geração em inglês está disponível apenas no plano Premium.',
+    );
+  }
+
+  if (jobDescription && !hasFeature(user.plan, 'canMatchJob')) {
+    jobDescription = undefined;
   }
 
   const resume = await this.prisma.resume.findFirst({
@@ -86,22 +96,26 @@ export class ResumesService {
         resumeId,
         atsScore: Number(result.ats?.score) || 0,
         atsReport: result.ats || {},
-        rewrittenResume: result.rewritten || {},
+        rewrittenResume: hasFeature(user.plan, 'canSeeRewrittenResume')
+          ? result.rewritten || {}
+          : {},
         recruiterFeedback: result.recruiter || {},
         innovationTips: result.innovation || {},
       },
     });
 
-    await this.prisma.resumeVersion.create({
-      data: {
-        resumeId,
-        label: `Otimizado v${await this.versionCount(resumeId)}`,
-        content: this.rewrittenToText(result.rewritten),
-        rewritten: result.rewritten || {},
-      },
-    });
+    if (hasFeature(user.plan, 'canSeeRewrittenResume')) {
+      await this.prisma.resumeVersion.create({
+        data: {
+          resumeId,
+          label: `Otimizado v${await this.versionCount(resumeId)}`,
+          content: this.rewrittenToText(result.rewritten),
+          rewritten: result.rewritten || {},
+        },
+      });
+    }
 
-    if (includeEnglish && result.rewritten) {
+    if (includeEnglish && hasFeature(user.plan, 'canGenerateEnglishVersion') && result.rewritten) {
       const englishRewritten = await this.ai.translateToEnglish(result.rewritten);
       await this.prisma.resumeVersion.create({
         data: {
@@ -132,7 +146,7 @@ export class ResumesService {
 
     await this.prisma.user.update({
       where: { id: userId },
-      data: { creditsLeft: { decrement: requiredCredits } },
+      data: { creditsLeft: { decrement: 1 } },
     });
 
     return analysis;
@@ -206,6 +220,18 @@ export class ResumesService {
   const user = await this.prisma.user.findUnique({ where: { id: userId } });
   if (!user) throw new NotFoundException('Usuário não encontrado');
 
+  if (!hasFeature(user.plan, 'canDownloadFile')) {
+    throw new ForbiddenException(
+      'Download de arquivos não está disponível no seu plano atual.',
+    );
+  }
+
+  if (language === 'en' && !hasFeature(user.plan, 'canGenerateEnglishVersion')) {
+    throw new ForbiddenException(
+      'Versão em inglês está disponível apenas no plano Premium.',
+    );
+  }
+
   const resume = await this.prisma.resume.findFirst({
     where: { id: resumeId, userId },
     include: {
@@ -225,7 +251,7 @@ export class ResumesService {
   if (!optimized) {
     throw new BadRequestException(
       language === 'en'
-        ? 'Versão em inglês não disponível. Você pediu essa versão ao analisar?'
+        ? 'Versão em inglês não disponível.'
         : 'Nenhuma versão otimizada disponível. Analise o currículo primeiro.',
     );
   }
