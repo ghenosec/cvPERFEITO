@@ -28,15 +28,14 @@ export class ResumesController {
     return this.service.upload(req.user.userId, file);
   }
 
-  @Post(':id/analyze')
+ @Post(':id/analyze')
   analyze(
     @Param('id') id: string,
     @Body('jobDescription') jobDescription: string,
-    @Body('includeEnglish') includeEnglish: boolean,
     @Req() req: any,
-  ) {
-    return this.service.analyze(req.user.userId, id, jobDescription, !!includeEnglish);
-  }
+) {
+  return this.service.analyze(req.user.userId, id, jobDescription);
+}
 
   @Get()
   list(@Req() req: any) {

@@ -57,7 +57,6 @@ export class ResumesService {
   userId: string,
   resumeId: string,
   jobDescription?: string,
-  includeEnglish: boolean = false,
 ) {
   const user = await this.prisma.user.findUnique({ where: { id: userId } });
   if (!user) throw new NotFoundException('Usuário não encontrado');
@@ -65,12 +64,6 @@ export class ResumesService {
   if (user.creditsLeft < 1) {
     throw new ForbiddenException(
       'Você não tem créditos disponíveis. Compre um plano para continuar.',
-    );
-  }
-
-  if (includeEnglish && !hasFeature(user.plan, 'canGenerateEnglishVersion')) {
-    throw new ForbiddenException(
-      'Geração em inglês está disponível apenas no plano Premium.',
     );
   }
 
@@ -96,26 +89,22 @@ export class ResumesService {
         resumeId,
         atsScore: Number(result.ats?.score) || 0,
         atsReport: result.ats || {},
-        rewrittenResume: hasFeature(user.plan, 'canSeeRewrittenResume')
-          ? result.rewritten || {}
-          : {},
+        rewrittenResume: result.rewritten || {},
         recruiterFeedback: result.recruiter || {},
         innovationTips: result.innovation || {},
       },
     });
 
-    if (hasFeature(user.plan, 'canSeeRewrittenResume')) {
-      await this.prisma.resumeVersion.create({
-        data: {
-          resumeId,
-          label: `Otimizado v${await this.versionCount(resumeId)}`,
-          content: this.rewrittenToText(result.rewritten),
-          rewritten: result.rewritten || {},
-        },
-      });
-    }
+    await this.prisma.resumeVersion.create({
+      data: {
+        resumeId,
+        label: `Otimizado v${await this.versionCount(resumeId)}`,
+        content: this.rewrittenToText(result.rewritten),
+        rewritten: result.rewritten || {},
+      },
+    });
 
-    if (includeEnglish && hasFeature(user.plan, 'canGenerateEnglishVersion') && result.rewritten) {
+    if (hasFeature(user.plan, 'canGenerateEnglishVersion') && result.rewritten) {
       const englishRewritten = await this.ai.translateToEnglish(result.rewritten);
       await this.prisma.resumeVersion.create({
         data: {
