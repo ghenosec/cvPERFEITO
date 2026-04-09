@@ -13,12 +13,11 @@ export class ResumeService {
     return this.http.post<{ id: string }>(`${this.api}/resume/upload`, fd);
   }
 
-  analyze(id: string, jobDescription?: string, includeEnglish: boolean = false) {
-    return this.http.post(`${this.api}/resume/${id}/analyze`, {
-      jobDescription,
-      includeEnglish,
-    });
-  }
+  analyze(id: string, jobDescription?: string) {
+  return this.http.post(`${this.api}/resume/${id}/analyze`, {
+    jobDescription,
+  });
+}
 
   download(id: string, format: 'pdf' | 'docx' = 'pdf', language: 'pt' | 'en' = 'pt') {
     return this.http.get(
