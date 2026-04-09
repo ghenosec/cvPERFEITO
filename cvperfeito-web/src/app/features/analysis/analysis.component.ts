@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, signal, HostListener } from '@angular/core';
+import { Component, OnInit, inject, signal, HostListener, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { NgIcon, provideIcons } from '@ng-icons/core';
@@ -16,14 +16,16 @@ import {
   heroBolt,
   heroDocumentText,
   heroLightBulb,
-  heroAcademicCap,
+  heroLockClosed,
 } from '@ng-icons/heroicons/outline';
 import { ResumeService } from '../../core/services/resume.service';
+import { AuthService } from '../../core/services/auth.service';
+import { UpgradeModalComponent, LockedFeature } from '../../shared/ui/upgrade-model.component';
 
 @Component({
   selector: 'app-analysis',
   standalone: true,
-  imports: [CommonModule, RouterLink, NgIcon],
+  imports: [CommonModule, RouterLink, NgIcon, UpgradeModalComponent],
   viewProviders: [
     provideIcons({
       heroArrowLeft,
@@ -39,7 +41,7 @@ import { ResumeService } from '../../core/services/resume.service';
       heroBolt,
       heroDocumentText,
       heroLightBulb,
-      heroAcademicCap,
+      heroLockClosed,
     }),
   ],
   template: `
@@ -69,15 +71,27 @@ import { ResumeService } from '../../core/services/resume.service';
                 @if (moreMenuOpen()) {
                   <div class="absolute top-12 left-0 z-20 w-56 rounded-xl bg-white border border-surface-border shadow-lg py-2"
                        (click)="$event.stopPropagation()">
-                    <a [routerLink]="['/compare', d.id]"
-                       class="flex items-center gap-3 px-4 py-2 text-sm text-ink hover:bg-surface-muted transition">
+                    <a [routerLink]="isFree() ? null : ['/compare', d.id]"
+                       (click)="handleCompareClick($event)"
+                       class="flex items-center gap-3 px-4 py-2 text-sm hover:bg-surface-muted transition cursor-pointer"
+                       [class.text-ink]="!isFree()"
+                       [class.text-ink-muted]="isFree()">
                       <ng-icon name="heroChartBar" size="16" class="text-ink-muted"></ng-icon>
                       Comparar versões
+                      @if (isFree()) {
+                        <ng-icon name="heroLockClosed" size="12" class="ml-auto text-ink-muted"></ng-icon>
+                      }
                     </a>
-                    <a [routerLink]="['/history', d.id]"
-                       class="flex items-center gap-3 px-4 py-2 text-sm text-ink hover:bg-surface-muted transition">
+                    <a [routerLink]="isFree() ? null : ['/history', d.id]"
+                       (click)="handleHistoryClick($event)"
+                       class="flex items-center gap-3 px-4 py-2 text-sm hover:bg-surface-muted transition cursor-pointer"
+                       [class.text-ink]="!isFree()"
+                       [class.text-ink-muted]="isFree()">
                       <ng-icon name="heroClock" size="16" class="text-ink-muted"></ng-icon>
                       Histórico
+                      @if (isFree()) {
+                        <ng-icon name="heroLockClosed" size="12" class="ml-auto text-ink-muted"></ng-icon>
+                      }
                     </a>
                     <button (click)="toggleShare(); moreMenuOpen.set(false)"
                             class="w-full flex items-center gap-3 px-4 py-2 text-sm text-ink hover:bg-surface-muted transition">
@@ -279,94 +293,124 @@ import { ResumeService } from '../../core/services/resume.service';
                       <ng-icon name="heroDocumentText" size="18" class="text-ink-muted"></ng-icon>
                       Preview do currículo otimizado
                     </h3>
-                    <span class="text-xs text-ink-muted">Assim vai ficar no PDF/DOCX</span>
+                    @if (isFree()) {
+                      <button (click)="showUpgrade('rewritten')"
+                              class="text-xs font-semibold text-brand-primary hover:underline flex items-center gap-1">
+                        <ng-icon name="heroLockClosed" size="12"></ng-icon>
+                        Desbloquear preview completo
+                      </button>
+                    } @else {
+                      <span class="text-xs text-ink-muted">Assim vai ficar no PDF/DOCX</span>
+                    }
                   </div>
 
                   @if (rewritten(); as r) {
-                    <div class="mx-auto max-w-2xl bg-white border border-surface-border rounded-xl px-12 py-10 shadow-sm">
-                      <div class="text-center pb-4 border-b border-surface-border">
-                        <h2 class="text-2xl font-bold text-ink tracking-tight">{{ contactName() }}</h2>
-                        @if (r.headline) {
-                          <p class="mt-1 text-sm text-ink-muted">{{ r.headline }}</p>
+                    <div class="relative">
+                      <div class="mx-auto max-w-2xl bg-white border border-surface-border rounded-xl px-12 py-10 shadow-sm"
+                           [class.max-h-\[400px\]]="isFree()"
+                           [class.overflow-hidden]="isFree()">
+                        <div class="text-center pb-4 border-b border-surface-border">
+                          <h2 class="text-2xl font-bold text-ink tracking-tight">{{ contactName() }}</h2>
+                          @if (r.headline) {
+                            <p class="mt-1 text-sm text-ink-muted">{{ r.headline }}</p>
+                          }
+                          @if (contactLine()) {
+                            <p class="mt-2 text-xs text-ink-muted">{{ contactLine() }}</p>
+                          }
+                        </div>
+
+                        @if (r.summary) {
+                          <div class="mt-6">
+                            <h4 class="text-[11px] font-bold text-ink uppercase tracking-widest pb-1 border-b border-surface-border">
+                              Resumo Profissional
+                            </h4>
+                            <p class="mt-3 text-xs text-ink leading-relaxed text-justify">{{ r.summary }}</p>
+                          </div>
                         }
-                        @if (contactLine()) {
-                          <p class="mt-2 text-xs text-ink-muted">{{ contactLine() }}</p>
+
+                        @if (r.experience?.length) {
+                          <div class="mt-6" [class.blur-sm]="isFree()" [class.select-none]="isFree()">
+                            <h4 class="text-[11px] font-bold text-ink uppercase tracking-widest pb-1 border-b border-surface-border">
+                              Experiência Profissional
+                            </h4>
+                            <div class="mt-3 space-y-4">
+                              @for (exp of r.experience; track exp.role) {
+                                <div>
+                                  <div class="flex items-start justify-between gap-3">
+                                    <p class="text-xs font-bold text-ink flex-1">{{ exp.role }}</p>
+                                    @if (exp.period) {
+                                      <p class="text-[10px] text-ink-muted shrink-0">{{ exp.period }}</p>
+                                    }
+                                  </div>
+                                  @if (exp.company) {
+                                    <p class="text-xs italic text-ink-muted mt-0.5">{{ exp.company }}</p>
+                                  }
+                                  @if (exp.bullets?.length) {
+                                    <ul class="mt-2 space-y-1">
+                                      @for (b of exp.bullets; track b) {
+                                        <li class="text-xs text-ink flex gap-2 leading-relaxed">
+                                          <span class="text-ink-muted">•</span>
+                                          <span class="flex-1">{{ b }}</span>
+                                        </li>
+                                      }
+                                    </ul>
+                                  }
+                                </div>
+                              }
+                            </div>
+                          </div>
+                        }
+
+                        @if (r.education?.length) {
+                          <div class="mt-6" [class.blur-sm]="isFree()" [class.select-none]="isFree()">
+                            <h4 class="text-[11px] font-bold text-ink uppercase tracking-widest pb-1 border-b border-surface-border">
+                              Formação Acadêmica
+                            </h4>
+                            <div class="mt-3 space-y-3">
+                              @for (ed of r.education; track ed.degree) {
+                                <div>
+                                  <div class="flex items-start justify-between gap-3">
+                                    <p class="text-xs font-bold text-ink flex-1">{{ ed.degree }}</p>
+                                    @if (ed.period) {
+                                      <p class="text-[10px] text-ink-muted shrink-0">{{ ed.period }}</p>
+                                    }
+                                  </div>
+                                  @if (ed.school) {
+                                    <p class="text-xs italic text-ink-muted mt-0.5">{{ ed.school }}</p>
+                                  }
+                                </div>
+                              }
+                            </div>
+                          </div>
+                        }
+
+                        @if (r.skills?.length) {
+                          <div class="mt-6" [class.blur-sm]="isFree()" [class.select-none]="isFree()">
+                            <h4 class="text-[11px] font-bold text-ink uppercase tracking-widest pb-1 border-b border-surface-border">
+                              Habilidades
+                            </h4>
+                            <p class="mt-3 text-xs text-ink leading-relaxed">
+                              {{ r.skills.join('  •  ') }}
+                            </p>
+                          </div>
                         }
                       </div>
 
-                      @if (r.summary) {
-                        <div class="mt-6">
-                          <h4 class="text-[11px] font-bold text-ink uppercase tracking-widest pb-1 border-b border-surface-border">
-                            Resumo Profissional
-                          </h4>
-                          <p class="mt-3 text-xs text-ink leading-relaxed text-justify">{{ r.summary }}</p>
-                        </div>
-                      }
-
-                      @if (r.experience?.length) {
-                        <div class="mt-6">
-                          <h4 class="text-[11px] font-bold text-ink uppercase tracking-widest pb-1 border-b border-surface-border">
-                            Experiência Profissional
-                          </h4>
-                          <div class="mt-3 space-y-4">
-                            @for (exp of r.experience; track exp.role) {
-                              <div>
-                                <div class="flex items-start justify-between gap-3">
-                                  <p class="text-xs font-bold text-ink flex-1">{{ exp.role }}</p>
-                                  @if (exp.period) {
-                                    <p class="text-[10px] text-ink-muted shrink-0">{{ exp.period }}</p>
-                                  }
-                                </div>
-                                @if (exp.company) {
-                                  <p class="text-xs italic text-ink-muted mt-0.5">{{ exp.company }}</p>
-                                }
-                                @if (exp.bullets?.length) {
-                                  <ul class="mt-2 space-y-1">
-                                    @for (b of exp.bullets; track b) {
-                                      <li class="text-xs text-ink flex gap-2 leading-relaxed">
-                                        <span class="text-ink-muted">•</span>
-                                        <span class="flex-1">{{ b }}</span>
-                                      </li>
-                                    }
-                                  </ul>
-                                }
-                              </div>
-                            }
+                      @if (isFree()) {
+                        <div class="absolute inset-x-0 bottom-0 h-64 bg-gradient-to-t from-white via-white/95 to-transparent flex items-end justify-center pb-8 pointer-events-none">
+                          <div class="pointer-events-auto text-center">
+                            <div class="inline-flex h-12 w-12 rounded-full bg-brand-primary/10 items-center justify-center mb-3">
+                              <ng-icon name="heroLockClosed" size="22" class="text-brand-primary"></ng-icon>
+                            </div>
+                            <p class="text-sm font-semibold text-ink mb-1">Preview bloqueado</p>
+                            <p class="text-xs text-ink-muted mb-4 max-w-xs">
+                              Faça upgrade para ver a versão completa do seu currículo otimizado
+                            </p>
+                            <button (click)="showUpgrade('rewritten')"
+                                    class="rounded-xl bg-brand-primary px-6 py-2.5 text-sm font-semibold text-white hover:bg-brand-secondary transition">
+                              Desbloquear
+                            </button>
                           </div>
-                        </div>
-                      }
-
-                      @if (r.education?.length) {
-                        <div class="mt-6">
-                          <h4 class="text-[11px] font-bold text-ink uppercase tracking-widest pb-1 border-b border-surface-border">
-                            Formação Acadêmica
-                          </h4>
-                          <div class="mt-3 space-y-3">
-                            @for (ed of r.education; track ed.degree) {
-                              <div>
-                                <div class="flex items-start justify-between gap-3">
-                                  <p class="text-xs font-bold text-ink flex-1">{{ ed.degree }}</p>
-                                  @if (ed.period) {
-                                    <p class="text-[10px] text-ink-muted shrink-0">{{ ed.period }}</p>
-                                  }
-                                </div>
-                                @if (ed.school) {
-                                  <p class="text-xs italic text-ink-muted mt-0.5">{{ ed.school }}</p>
-                                }
-                              </div>
-                            }
-                          </div>
-                        </div>
-                      }
-
-                      @if (r.skills?.length) {
-                        <div class="mt-6">
-                          <h4 class="text-[11px] font-bold text-ink uppercase tracking-widest pb-1 border-b border-surface-border">
-                            Habilidades
-                          </h4>
-                          <p class="mt-3 text-xs text-ink leading-relaxed">
-                            {{ r.skills.join('  •  ') }}
-                          </p>
                         </div>
                       }
                     </div>
@@ -394,12 +438,19 @@ import { ResumeService } from '../../core/services/resume.service';
           }
         }
       </div>
+
+      <app-upgrade-modal
+        [open]="upgradeModalOpen()"
+        [feature]="upgradeFeature()"
+        (close)="upgradeModalOpen.set(false)"
+      />
     </section>
   `,
 })
 export class AnalysisComponent implements OnInit {
   private route = inject(ActivatedRoute);
   private resumeService = inject(ResumeService);
+  private auth = inject(AuthService);
 
   data = signal<any>(null);
   loading = signal(true);
@@ -409,6 +460,19 @@ export class AnalysisComponent implements OnInit {
   shareToken = signal<string | null>(null);
   moreMenuOpen = signal(false);
   downloadMenuOpen = signal(false);
+
+  upgradeModalOpen = signal(false);
+  upgradeFeature = signal<LockedFeature>('download');
+
+  isFree = computed(() => this.auth.user()?.plan === 'FREE');
+  isPremium = computed(() => this.auth.user()?.plan === 'PREMIUM');
+
+  showUpgrade(feature: LockedFeature) {
+    this.upgradeFeature.set(feature);
+    this.upgradeModalOpen.set(true);
+    this.moreMenuOpen.set(false);
+    this.downloadMenuOpen.set(false);
+  }
 
   toggleMoreMenu(event: Event) {
     event.stopPropagation();
@@ -423,8 +487,51 @@ export class AnalysisComponent implements OnInit {
   }
 
   pickDownload(format: 'pdf' | 'docx', language: 'pt' | 'en') {
+    if (this.isFree()) {
+      this.showUpgrade('download');
+      return;
+    }
+    if (language === 'en' && !this.isPremium()) {
+      this.showUpgrade('englishVersion');
+      return;
+    }
     this.downloadMenuOpen.set(false);
     this.downloadFile(format, language);
+  }
+
+  generateCoverLetter() {
+    if (this.isFree()) {
+      this.showUpgrade('coverLetter');
+      return;
+    }
+    const id = this.route.snapshot.paramMap.get('id')!;
+    const job = this.data()?.jobMatches?.[0]?.jobDescription;
+    this.generatingCover.set(true);
+    this.resumeService.generateCoverLetter(id, job).subscribe({
+      next: () => {
+        this.generatingCover.set(false);
+        this.load();
+      },
+      error: () => {
+        this.generatingCover.set(false);
+      },
+    });
+  }
+
+  handleCompareClick(event: Event) {
+    if (this.isFree()) {
+      event.preventDefault();
+      this.showUpgrade('compare');
+    }
+    this.moreMenuOpen.set(false);
+  }
+
+  handleHistoryClick(event: Event) {
+    if (this.isFree()) {
+      event.preventDefault();
+      this.showUpgrade('history');
+    }
+    this.moreMenuOpen.set(false);
   }
 
   @HostListener('document:click')
@@ -510,20 +617,5 @@ export class AnalysisComponent implements OnInit {
 
   hasEnglishVersion() {
     return this.data()?.versions?.some((v: any) => v.label?.startsWith('English'));
-  }
-
-  generateCoverLetter() {
-    const id = this.route.snapshot.paramMap.get('id')!;
-    const job = this.data()?.jobMatches?.[0]?.jobDescription;
-    this.generatingCover.set(true);
-    this.resumeService.generateCoverLetter(id, job).subscribe({
-      next: () => {
-        this.generatingCover.set(false);
-        this.load();
-      },
-      error: () => {
-        this.generatingCover.set(false);
-      },
-    });
   }
 }
