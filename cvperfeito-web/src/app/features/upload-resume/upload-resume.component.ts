@@ -1,15 +1,19 @@
-import { Component, inject, signal, OnDestroy } from '@angular/core';
+import { Component, inject, signal, OnDestroy, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
-import { ResumeService } from '../../core/services/resume.service';
-import { AuthService } from '../../core/services/auth.service';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import {
   heroCloudArrowUp,
   heroPaperClip,
   heroXMark,
+  heroLockClosed,
+  heroSparkles,
+  heroCheck,
 } from '@ng-icons/heroicons/outline';
+import { ResumeService } from '../../core/services/resume.service';
+import { AuthService } from '../../core/services/auth.service';
+import { UpgradeModalComponent, LockedFeature } from '../../shared/ui/upgrade-model.component';
 
 interface Step {
   label: string;
@@ -18,23 +22,30 @@ interface Step {
 @Component({
   selector: 'app-upload-resume',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, NgIcon],
+  imports: [CommonModule, FormsModule, RouterLink, NgIcon, UpgradeModalComponent],
   viewProviders: [
-    provideIcons({ heroCloudArrowUp, heroPaperClip, heroXMark }),
+    provideIcons({
+      heroCloudArrowUp,
+      heroPaperClip,
+      heroXMark,
+      heroLockClosed,
+      heroSparkles,
+      heroCheck,
+    }),
   ],
   template: `
-          @if (loading()) {
-        <section class="fixed inset-0 bg-white z-50 flex items-center justify-center px-6">
-          <div class="max-w-lg w-full">
-            <div class="text-center mb-12">
-              <div class="inline-flex h-16 w-16 rounded-2xl bg-brand-primary items-center justify-center text-white text-3xl font-bold">
-                cv
-              </div>
-              <h2 class="mt-6 text-2xl font-bold text-ink">Analisando seu currículo</h2>
-              <p class="mt-2 text-sm text-ink-muted">Não feche esta aba.</p>
+    @if (loading()) {
+      <section class="fixed inset-0 bg-white z-50 flex items-center justify-center px-6">
+        <div class="max-w-lg w-full">
+          <div class="text-center mb-12">
+            <div class="inline-flex h-16 w-16 rounded-2xl bg-brand-primary items-center justify-center text-white text-3xl font-bold">
+              cv
             </div>
+            <h2 class="mt-6 text-2xl font-bold text-ink">Analisando seu currículo</h2>
+            <p class="mt-2 text-sm text-ink-muted">Não feche esta aba.</p>
+          </div>
 
-            <div class="min-h-[60px] flex items-center justify-center mb-6">
+          <div class="min-h-[60px] flex items-center justify-center mb-6">
             <div class="flex items-center gap-3 animate-fade">
               <div class="h-5 w-5 rounded-full border-2 border-brand-primary border-t-transparent animate-spin"></div>
               <span class="text-base font-medium text-ink">
@@ -43,95 +54,105 @@ interface Step {
             </div>
           </div>
 
-            <div class="h-2 bg-surface-muted rounded-full overflow-hidden">
-              <div class="h-full bg-gradient-to-r from-brand-primary to-brand-hover transition-all duration-1000 ease-out"
-                  [style.width.%]="progressPct()"></div>
-            </div>
-
-            <p class="mt-4 text-center text-xs text-ink-muted">
-              Etapa {{ currentStepDisplay() }} de {{ steps.length }}
-            </p>
+          <div class="h-2 bg-surface-muted rounded-full overflow-hidden">
+            <div class="h-full bg-gradient-to-r from-brand-primary to-brand-hover transition-all duration-1000 ease-out"
+                 [style.width.%]="progressPct()"></div>
           </div>
-        </section>
-      }
+
+          <p class="mt-4 text-center text-xs text-ink-muted">
+            Etapa {{ currentStepDisplay() }} de {{ steps.length }}
+          </p>
+        </div>
+      </section>
+    }
 
     <section class="px-6 py-12">
       <div class="mx-auto max-w-3xl">
         <h1 class="text-4xl font-bold text-ink">Otimize seu currículo</h1>
         <p class="mt-2 text-ink-muted">
-          Envie seu currículo e deixe nossas 5 IAs analisarem cada detalhe.
+          Envie seu currículo e deixe nossas IAs analisarem cada detalhe.
         </p>
 
         @if ((auth.user()?.creditsLeft ?? 0) === 0) {
-          <div class="mt-6 rounded-2xl bg-brand-primary/10 border border-brand-primary/20 px-6 py-4">
+          <div class="mt-6 rounded-2xl bg-brand-primary/10 border border-brand-primary/20 px-6 py-4 flex items-center justify-between gap-4">
+            <div class="flex-1">
+              <p class="text-sm text-ink font-semibold">Você não tem créditos disponíveis</p>
+              <p class="text-xs text-ink-muted mt-0.5">Escolha um plano para continuar analisando currículos.</p>
+            </div>
+            <a routerLink="/billing"
+               class="rounded-xl bg-brand-primary px-4 py-2 text-sm font-semibold text-white hover:bg-brand-secondary transition shrink-0">
+              Ver planos
+            </a>
+          </div>
+        } @else if (isPremium()) {
+          <div class="mt-6 rounded-2xl bg-brand-primary/5 border border-brand-primary/20 px-5 py-3 flex items-center gap-3">
+            <ng-icon name="heroSparkles" size="18" class="text-brand-primary shrink-0"></ng-icon>
             <p class="text-sm text-ink">
-              Você não tem créditos. <a routerLink="/billing" class="text-brand-primary font-semibold underline">Compre uma análise por R$ 5,00</a>.
+              Como você é <strong>Premium</strong>, a versão em inglês do currículo será gerada automaticamente.
             </p>
           </div>
         }
 
         <div
-            class="mt-10 rounded-2xl border-2 border-dashed border-surface-border bg-white p-12 text-center transition hover:border-brand-primary"
-            [class.border-brand-primary]="dragging()"
-            (dragover)="onDragOver($event)"
-            (dragleave)="dragging.set(false)"
-            (drop)="onDrop($event)">
-            <div class="flex justify-center mb-4">
-              <ng-icon name="heroCloudArrowUp" size="56" class="text-ink-muted"></ng-icon>
-            </div>
-            <p class="text-lg font-medium text-ink">
-              Arraste seu currículo aqui ou
-              <label class="cursor-pointer text-brand-primary underline ml-1">
-                escolha um arquivo
-                <input type="file" class="hidden" (change)="onFile($event)" accept=".pdf,.docx" />
-              </label>
-            </p>
-            <p class="mt-2 text-sm text-ink-muted">PDF ou DOCX, até 5MB</p>
+          class="mt-10 rounded-2xl border-2 border-dashed border-surface-border bg-white p-12 text-center transition hover:border-brand-primary"
+          [class.border-brand-primary]="dragging()"
+          (dragover)="onDragOver($event)"
+          (dragleave)="dragging.set(false)"
+          (drop)="onDrop($event)">
+          <div class="flex justify-center mb-4">
+            <ng-icon name="heroCloudArrowUp" size="56" class="text-ink-muted"></ng-icon>
           </div>
-
-        @if (fileName()) {
-            <div class="mt-4 rounded-xl bg-white border border-surface-border p-4 flex items-center justify-between">
-              <span class="flex items-center gap-2 font-medium text-ink">
-                <ng-icon name="heroPaperClip" size="16" class="text-ink-muted"></ng-icon>
-                {{ fileName() }}
-              </span>
-              <button (click)="clear()" class="text-sm text-state-error hover:underline flex items-center gap-1">
-                <ng-icon name="heroXMark" size="14"></ng-icon>
-                Remover
-              </button>
-            </div>
-          }
-
-        <div class="mt-8">
-          <label class="mb-2 block text-sm font-medium text-ink">
-            Descrição da vaga (opcional)
-          </label>
-          <textarea
-            [(ngModel)]="jobDescription"
-            rows="6"
-            placeholder="Cole aqui a descrição da vaga desejada para receber um match personalizado..."
-            class="w-full rounded-xl border border-surface-border bg-white p-4 text-ink focus:border-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-hover/30">
-          </textarea>
+          <p class="text-lg font-medium text-ink">
+            Arraste seu currículo aqui ou
+            <label class="cursor-pointer text-brand-primary underline ml-1">
+              escolha um arquivo
+              <input type="file" class="hidden" (change)="onFile($event)" accept=".pdf,.docx" />
+            </label>
+          </p>
+          <p class="mt-2 text-sm text-ink-muted">PDF ou DOCX, até 5MB</p>
         </div>
 
-        <div class="mt-6 rounded-xl border border-surface-border bg-white p-5">
-          <label class="flex items-start gap-3 cursor-pointer">
-            <input
-              type="checkbox"
-              [(ngModel)]="includeEnglish"
-              class="mt-1 h-5 w-5 rounded border-surface-border text-brand-primary focus:ring-brand-primary">
-            <div class="flex-1">
-              <div class="flex items-center justify-between">
-                <span class="font-semibold text-ink">Gerar versão em inglês</span>
-                <span class="rounded-full bg-brand-primary/10 px-3 py-1 text-xs font-bold text-brand-primary">
-                  +R$ 5,00
-                </span>
-              </div>
-              <p class="text-xs text-ink-muted mt-1">
-                Tradução profissional do currículo otimizado para inglês americano. Ideal para vagas internacionais.
-              </p>
-            </div>
-          </label>
+        @if (fileName()) {
+          <div class="mt-4 rounded-xl bg-white border border-surface-border p-4 flex items-center justify-between">
+            <span class="flex items-center gap-2 font-medium text-ink">
+              <ng-icon name="heroPaperClip" size="16" class="text-ink-muted"></ng-icon>
+              {{ fileName() }}
+            </span>
+            <button (click)="clear()" class="text-sm text-state-error hover:underline flex items-center gap-1">
+              <ng-icon name="heroXMark" size="14"></ng-icon>
+              Remover
+            </button>
+          </div>
+        }
+
+        <div class="mt-8">
+          <div class="flex items-center justify-between mb-2">
+            <label class="block text-sm font-medium text-ink">
+              Descrição da vaga (opcional)
+            </label>
+            @if (!canMatchJob()) {
+              <button (click)="showUpgrade('jobMatch')"
+                      class="text-xs font-semibold text-brand-primary hover:underline flex items-center gap-1">
+                <ng-icon name="heroLockClosed" size="12"></ng-icon>
+                Disponível no Premium
+              </button>
+            }
+          </div>
+          <textarea
+            [(ngModel)]="jobDescription"
+            (focus)="onJobTextareaFocus()"
+            rows="6"
+            [placeholder]="canMatchJob() ? 'Cole aqui a descrição da vaga desejada para receber um match personalizado...' : 'Match com descrição de vaga é exclusivo do plano Premium'"
+            class="w-full rounded-xl border border-surface-border bg-white p-4 text-ink focus:border-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-hover/30"
+            [class.opacity-60]="!canMatchJob()"
+            [class.cursor-not-allowed]="!canMatchJob()"
+            [readonly]="!canMatchJob()">
+          </textarea>
+          @if (!canMatchJob() && jobDescription) {
+            <p class="mt-2 text-xs text-ink-muted">
+              A descrição colada será ignorada. Faça upgrade para Premium para usar match de vaga.
+            </p>
+          }
         </div>
 
         @if (error()) {
@@ -142,12 +163,18 @@ interface Step {
 
         <button
           (click)="submit()"
-          [disabled]="!file() || loading()"
+          [disabled]="!file() || loading() || (auth.user()?.creditsLeft ?? 0) === 0"
           class="mt-8 w-full rounded-xl bg-brand-primary py-4 font-semibold text-white shadow-lg hover:bg-brand-secondary transition disabled:opacity-50 disabled:cursor-not-allowed">
           Analisar currículo
         </button>
       </div>
     </section>
+
+    <app-upgrade-modal
+      [open]="upgradeModalOpen()"
+      [feature]="upgradeFeature()"
+      (close)="upgradeModalOpen.set(false)"
+    />
   `,
 })
 export class UploadResumeComponent implements OnDestroy {
@@ -162,29 +189,45 @@ export class UploadResumeComponent implements OnDestroy {
   error = signal<string | null>(null);
   currentStep = signal<number>(0);
   jobDescription = '';
-  includeEnglish = false;
+
+  upgradeModalOpen = signal(false);
+  upgradeFeature = signal<LockedFeature>('jobMatch');
+
+  isPremium = computed(() => this.auth.user()?.plan === 'PREMIUM');
+  canMatchJob = computed(() => this.auth.user()?.plan === 'PREMIUM');
 
   steps: Step[] = [
-    { label: 'Extraindo texto do arquivo'},
-    { label: 'Analisando compatibilidade ATS'},
-    { label: 'Reescrevendo com IA profissional'},
-    { label: 'Visão do recrutador sênior'},
-    { label: 'Gerando sugestões e inovações'},
+    { label: 'Extraindo texto do arquivo' },
+    { label: 'Analisando compatibilidade ATS' },
+    { label: 'Reescrevendo com IA profissional' },
+    { label: 'Visão do recrutador sênior' },
+    { label: 'Gerando sugestões e inovações' },
   ];
 
   private stepTimers: any[] = [];
 
+  currentStepData() {
+    return this.steps[this.currentStep()] || { label: 'Finalizando' };
+  }
+
   currentStepDisplay() {
-  return Math.min(this.currentStep() + 1, this.steps.length);
-}
+    return Math.min(this.currentStep() + 1, this.steps.length);
+  }
 
   progressPct() {
     return Math.min(100, ((this.currentStep() + 1) / this.steps.length) * 100);
   }
 
- currentStepData() {
-  return this.steps[this.currentStep()] || { label: 'Finalizando' };
-}
+  showUpgrade(feature: LockedFeature) {
+    this.upgradeFeature.set(feature);
+    this.upgradeModalOpen.set(true);
+  }
+
+  onJobTextareaFocus() {
+    if (!this.canMatchJob()) {
+      this.showUpgrade('jobMatch');
+    }
+  }
 
   onFile(event: Event) {
     const input = event.target as HTMLInputElement;
@@ -239,24 +282,23 @@ export class UploadResumeComponent implements OnDestroy {
 
     this.resumeService.upload(this.file()!).subscribe({
       next: (res) => {
-        this.resumeService
-          .analyze(res.id, this.jobDescription || undefined, this.includeEnglish)
-          .subscribe({
-            next: () => {
-              this.clearStepTimers();
-              this.currentStep.set(this.steps.length);
-              this.auth.fetchMe().subscribe();
-              setTimeout(() => {
-                this.loading.set(false);
-                this.router.navigate(['/analysis', res.id]);
-              }, 500);
-            },
-            error: (err) => {
-              this.clearStepTimers();
+        const jobToSend = this.canMatchJob() ? this.jobDescription || undefined : undefined;
+        this.resumeService.analyze(res.id, jobToSend).subscribe({
+          next: () => {
+            this.clearStepTimers();
+            this.currentStep.set(this.steps.length);
+            this.auth.fetchMe().subscribe();
+            setTimeout(() => {
               this.loading.set(false);
-              this.error.set(err?.error?.message || 'Erro ao analisar');
-            },
-          });
+              this.router.navigate(['/analysis', res.id]);
+            }, 500);
+          },
+          error: (err) => {
+            this.clearStepTimers();
+            this.loading.set(false);
+            this.error.set(err?.error?.message || 'Erro ao analisar');
+          },
+        });
       },
       error: (err) => {
         this.clearStepTimers();
