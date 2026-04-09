@@ -44,29 +44,31 @@ export class AuthService {
   }
 
   async me(userId: string) {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-    });
-    if (!user) throw new UnauthorizedException();
-    return {
+  const user = await this.prisma.user.findUnique({
+    where: { id: userId },
+  });
+  if (!user) throw new UnauthorizedException();
+  return {
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    plan: user.plan,
+    creditsLeft: user.creditsLeft,
+  };
+}
+
+private async buildResponse(user: any) {
+  const payload = { sub: user.id, email: user.email };
+  const accessToken = await this.jwt.signAsync(payload);
+  return {
+    accessToken,
+    user: {
       id: user.id,
       email: user.email,
       name: user.name,
+      plan: user.plan,
       creditsLeft: user.creditsLeft,
-    };
-  }
-
-  private async buildResponse(user: any) {
-    const payload = { sub: user.id, email: user.email };
-    const accessToken = await this.jwt.signAsync(payload);
-    return {
-      accessToken,
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        creditsLeft: user.creditsLeft,
-      },
-    };
-  }
+    },
+  };
+}
 }
