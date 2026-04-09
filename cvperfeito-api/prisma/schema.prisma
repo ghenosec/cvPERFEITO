@@ -22,11 +22,18 @@ enum PaymentStatus {
   REFUNDED
 }
 
+enum Plan {
+  FREE
+  BASIC
+  PREMIUM
+}
+
 model User {
   id           String    @id @default(uuid())
   email        String    @unique
   passwordHash String
   name         String
+  plan         Plan      @default(FREE)
   creditsLeft  Int       @default(1)
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
@@ -98,6 +105,7 @@ model Payment {
   abacateId       String        @unique
   amountCents     Int
   status          PaymentStatus @default(PENDING)
+  planGranted     Plan          @default(BASIC)
   creditsGranted  Int           @default(1)
   pixQrCode       String?       @db.Text
   pixCopyPaste    String?       @db.Text
