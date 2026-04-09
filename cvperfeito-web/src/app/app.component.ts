@@ -1,4 +1,4 @@
-import { Component, inject } from '@angular/core';
+import { Component, inject, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterLink, RouterOutlet } from '@angular/router';
 import { AuthService } from './core/services/auth.service';
@@ -10,7 +10,7 @@ import { AuthService } from './core/services/auth.service';
   template: `
     <div class="min-h-screen flex flex-col">
       @if (auth.token()) {
-        <header class="border-b border-surface-border bg-white sticky top-0 z-50">
+        <header class="border-b border-surface-border bg-white sticky top-0 z-40">
           <div class="mx-auto max-w-7xl px-6 py-4 flex items-center justify-between">
             <a routerLink="/dashboard" class="flex items-center gap-2">
               <div class="h-8 w-8 rounded-lg bg-brand-primary flex items-center justify-center text-white font-bold">cv</div>
@@ -19,13 +19,21 @@ import { AuthService } from './core/services/auth.service';
             <nav class="flex items-center gap-6">
               <a routerLink="/dashboard" class="text-sm text-ink-muted hover:text-brand-primary transition">Dashboard</a>
               <a routerLink="/upload" class="text-sm text-ink-muted hover:text-brand-primary transition">Novo</a>
-              <a routerLink="/billing" class="text-sm text-ink-muted hover:text-brand-primary transition">Comprar análise</a>
-              <div class="flex items-center gap-3">
-                <span class="rounded-full bg-brand-primary/10 px-3 py-1 text-xs font-semibold text-brand-primary">
-                  {{ auth.user()?.creditsLeft ?? 0 }} crédito(s)
+
+              <a routerLink="/billing" class="flex items-center gap-2 rounded-full border border-surface-border px-3 py-1.5 hover:border-brand-primary transition group">
+                <span class="text-[10px] font-bold uppercase tracking-wider"
+                      [class.text-ink-muted]="isFree()"
+                      [class.text-brand-primary]="!isFree()">
+                  {{ planLabel() }}
                 </span>
-                <button (click)="logout()" class="text-sm text-ink-muted hover:text-state-error transition">Sair</button>
-              </div>
+                <span class="h-3 w-px bg-surface-border"></span>
+                <span class="text-xs font-semibold text-ink">
+                  {{ auth.user()?.creditsLeft ?? 0 }}
+                </span>
+                <span class="text-[10px] text-ink-muted">créditos</span>
+              </a>
+
+              <button (click)="logout()" class="text-sm text-ink-muted hover:text-state-error transition">Sair</button>
             </nav>
           </div>
         </header>
@@ -39,6 +47,15 @@ import { AuthService } from './core/services/auth.service';
 export class AppComponent {
   auth = inject(AuthService);
   private router = inject(Router);
+
+  isFree = computed(() => this.auth.user()?.plan === 'FREE');
+
+  planLabel = computed(() => {
+    const plan = this.auth.user()?.plan;
+    if (plan === 'PREMIUM') return 'Premium';
+    if (plan === 'BASIC') return 'Básico';
+    return 'Gratuito';
+  });
 
   constructor() {
     if (this.auth.token()) {
