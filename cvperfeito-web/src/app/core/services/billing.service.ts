@@ -2,20 +2,35 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { environment } from '../../../environments/environment';
 
+export type PlanKey = 'BASIC' | 'PREMIUM';
+
+export interface PixResponse {
+  paymentId: string;
+  abacateId: string;
+  amount: number;
+  planName: string;
+  plan: PlanKey;
+  credits: number;
+  qrCodeBase64: string;
+  copyPaste: string;
+  expiresAt: string;
+  status: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class BillingService {
   private http = inject(HttpClient);
   private api = environment.apiUrl;
 
-  checkout() {
-    return this.http.post<{ url: string; paymentId: string; amount: number }>(
-      `${this.api}/billing/checkout`,
+  checkout(plan: PlanKey) {
+    return this.http.post<PixResponse>(
+      `${this.api}/billing/checkout/${plan}`,
       {},
     );
   }
 
-  pix() {
-    return this.http.post<any>(`${this.api}/billing/pix`, {});
+  simulate(paymentId: string) {
+    return this.http.post(`${this.api}/billing/payments/${paymentId}/simulate`, {});
   }
 
   payments() {
@@ -23,6 +38,8 @@ export class BillingService {
   }
 
   check(paymentId: string) {
-    return this.http.get<{ status: string }>(`${this.api}/billing/payments/${paymentId}/check`);
+    return this.http.get<{ status: string }>(
+      `${this.api}/billing/payments/${paymentId}/check`,
+    );
   }
 }
