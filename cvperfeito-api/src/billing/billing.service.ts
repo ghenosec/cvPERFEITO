@@ -3,18 +3,19 @@ import {
   Logger,
   NotFoundException,
   BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
 import axios, { AxiosInstance } from 'axios';
+import { Plan } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { PLANS } from '../commom/plans.config';
 
 @Injectable()
 export class BillingService {
   private readonly logger = new Logger(BillingService.name);
   private readonly api: AxiosInstance;
-  private readonly priceCents: number;
 
   constructor(private prisma: PrismaService) {
-    this.priceCents = Number(process.env.PRICE_PER_USE_CENTS || 500);
     this.api = axios.create({
       baseURL: process.env.ABACATEPAY_BASE_URL || 'https://api.abacatepay.com/v1',
       headers: {
@@ -24,85 +25,35 @@ export class BillingService {
     });
   }
 
-  async createCheckout(userId: string) {
+  async createPixForPlan(userId: string, targetPlan: 'BASIC' | 'PREMIUM') {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new NotFoundException('Usuário não encontrado');
 
-    const externalId = `cvperfeito_${userId}_${Date.now()}`;
-
-    try {
-      const { data } = await this.api.post('/billing/create', {
-        frequency: 'ONE_TIME',
-        methods: ['PIX'],
-        products: [
-          {
-            externalId: 'cv-analysis',
-            name: 'cvPERFEITO - Análise de Currículo',
-            description: '1 análise completa com 5 IAs + carta de apresentação',
-            quantity: 1,
-            price: this.priceCents,
-          },
-        ],
-        returnUrl: `${process.env.FRONTEND_URL}/billing`,
-        completionUrl: `${process.env.FRONTEND_URL}/billing/success`,
-        customer: {
-          name: user.name,
-          email: user.email,
-          cellphone: '(11) 99999-9999',
-          taxId: '000.000.000-00',
-        },
-        metadata: {
-          externalId,
-        },
-      });
-
-      const billing = data?.data || data;
-
-      const payment = await this.prisma.payment.create({
-        data: {
-          userId,
-          abacateId: billing.id,
-          amountCents: this.priceCents,
-          status: 'PENDING',
-          creditsGranted: 1,
-        },
-      });
-
-      return {
-        paymentId: payment.id,
-        abacateId: billing.id,
-        url: billing.url,
-        amount: this.priceCents,
-        status: billing.status,
-      };
-    } catch (err: any) {
-      this.logger.error(
-        'AbacatePay billing/create failed',
-        err?.response?.data || err.message,
-      );
-      throw new BadRequestException(
-        'Falha ao criar cobrança. Verifique sua chave AbacatePay.',
+    const planOrder = { FREE: 0, BASIC: 1, PREMIUM: 2 };
+    if (planOrder[user.plan] > planOrder[targetPlan]) {
+      throw new ForbiddenException(
+        'Downgrade não é permitido. Você já possui um plano superior.',
       );
     }
-  }
 
-  async createPixQrCode(userId: string) {
-    const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!user) throw new NotFoundException();
+    const planConfig = PLANS[targetPlan];
+    if (!planConfig || planConfig.priceCents === 0) {
+      throw new BadRequestException('Plano inválido');
+    }
 
     try {
       const { data } = await this.api.post('/pixQrCode/create', {
-        amount: this.priceCents,
+        amount: planConfig.priceCents,
         expiresIn: 3600,
-        description: 'cvPERFEITO - 1 análise de currículo',
+        description: `cvPERFEITO - Plano ${planConfig.name}`,
         customer: {
           name: user.name,
           email: user.email,
-          cellphone: '(11) 99999-9999',
-          taxId: '000.000.000-00',
+          cellphone: '(11) 4002-8922',
+          taxId: '111.444.777-35',
         },
         metadata: {
-          externalId: `cvperfeito_${userId}_${Date.now()}`,
+          externalId: `cvperfeito_${userId}_${targetPlan}_${Date.now()}`,
         },
       });
 
@@ -112,9 +63,10 @@ export class BillingService {
         data: {
           userId,
           abacateId: pix.id,
-          amountCents: this.priceCents,
+          amountCents: planConfig.priceCents,
           status: 'PENDING',
-          creditsGranted: 1,
+          planGranted: targetPlan as Plan,
+          creditsGranted: planConfig.credits,
           pixQrCode: pix.brCodeBase64,
           pixCopyPaste: pix.brCode,
         },
@@ -123,18 +75,45 @@ export class BillingService {
       return {
         paymentId: payment.id,
         abacateId: pix.id,
-        amount: this.priceCents,
+        amount: planConfig.priceCents,
+        planName: planConfig.name,
+        plan: targetPlan,
+        credits: planConfig.credits,
         qrCodeBase64: pix.brCodeBase64,
         copyPaste: pix.brCode,
         expiresAt: pix.expiresAt,
         status: pix.status,
       };
     } catch (err: any) {
+      if (err instanceof ForbiddenException || err instanceof BadRequestException) {
+        throw err;
+      }
       this.logger.error(
         'AbacatePay pixQrCode/create failed',
         err?.response?.data || err.message,
       );
       throw new BadRequestException('Falha ao gerar PIX.');
+    }
+  }
+
+  async simulatePayment(userId: string, paymentId: string) {
+    const payment = await this.prisma.payment.findFirst({
+      where: { id: paymentId, userId },
+    });
+    if (!payment) throw new NotFoundException();
+
+    try {
+      await this.api.post('/pixQrCode/simulate-payment', null, {
+        params: { id: payment.abacateId },
+      });
+      await this.applyPayment(payment.id);
+      return { ok: true };
+    } catch (err: any) {
+      this.logger.error(
+        'AbacatePay simulate-payment failed',
+        err?.response?.data || err.message,
+      );
+      throw new BadRequestException('Falha ao simular pagamento.');
     }
   }
 
@@ -151,10 +130,13 @@ export class BillingService {
       const status = (data?.data?.status || data?.status || '').toUpperCase();
 
       if (status === 'PAID' && payment.status !== 'PAID') {
-        await this.markAsPaid(payment.id, payment.userId, payment.creditsGranted);
+        await this.applyPayment(payment.id);
       }
 
-      return { status: payment.status, abacateStatus: status };
+      const updated = await this.prisma.payment.findUnique({
+        where: { id: payment.id },
+      });
+      return { status: updated?.status, abacateStatus: status };
     } catch {
       return { status: payment.status };
     }
@@ -167,7 +149,7 @@ export class BillingService {
     });
   }
 
-  async handleWebhook(rawBody: Buffer | string, signature?: string) {
+  async handleWebhook(rawBody: Buffer | string) {
     const body =
       typeof rawBody === 'string' ? rawBody : rawBody?.toString('utf-8') || '';
 
@@ -193,7 +175,7 @@ export class BillingService {
       if (!payment) return { ok: false, reason: 'payment not found' };
 
       if (payment.status !== 'PAID') {
-        await this.markAsPaid(payment.id, payment.userId, payment.creditsGranted);
+        await this.applyPayment(payment.id);
       }
       return { ok: true };
     }
@@ -211,17 +193,28 @@ export class BillingService {
     return { ok: true };
   }
 
-  private async markAsPaid(paymentId: string, userId: string, credits: number) {
+  private async applyPayment(paymentId: string) {
+    const payment = await this.prisma.payment.findUnique({
+      where: { id: paymentId },
+    });
+    if (!payment) return;
+
     await this.prisma.$transaction([
       this.prisma.payment.update({
         where: { id: paymentId },
         data: { status: 'PAID' },
       }),
       this.prisma.user.update({
-        where: { id: userId },
-        data: { creditsLeft: { increment: credits } },
+        where: { id: payment.userId },
+        data: {
+          plan: payment.planGranted,
+          creditsLeft: payment.creditsGranted,
+        },
       }),
     ]);
-    this.logger.log(`Payment ${paymentId} marked as PAID, +${credits} credits`);
+
+    this.logger.log(
+      `Payment ${paymentId} applied: user ${payment.userId} → plan ${payment.planGranted} with ${payment.creditsGranted} credits`,
+    );
   }
 }
