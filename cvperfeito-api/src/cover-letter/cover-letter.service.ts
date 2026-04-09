@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AiService } from '../ai/ai.service';
+import { hasFeature } from '../commom/plans.config';
 
 @Injectable()
 export class CoverLetterService {
@@ -14,33 +15,34 @@ export class CoverLetterService {
   ) {}
 
   async generate(userId: string, resumeId: string, jobDescription?: string) {
-    const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!user) throw new NotFoundException();
-    if (user.creditsLeft <= 0) {
-      throw new ForbiddenException(
-        'Sem créditos. Compre uma análise para gerar carta de apresentação.',
-      );
-    }
+  const user = await this.prisma.user.findUnique({ where: { id: userId } });
+  if (!user) throw new NotFoundException();
 
-    const resume = await this.prisma.resume.findFirst({
-      where: { id: resumeId, userId },
-    });
-    if (!resume) throw new NotFoundException('Currículo não encontrado');
-
-    const result = await this.ai.generateCoverLetter(
-      resume.originalText,
-      jobDescription,
+  if (!hasFeature(user.plan, 'canGenerateCoverLetter')) {
+    throw new ForbiddenException(
+      'Carta de apresentação não está disponível no plano gratuito.',
     );
-
-    const formatted = this.format(result);
-
-    return this.prisma.coverLetter.create({
-      data: {
-        resumeId,
-        content: formatted,
-      },
-    });
   }
+
+  const resume = await this.prisma.resume.findFirst({
+    where: { id: resumeId, userId },
+  });
+  if (!resume) throw new NotFoundException('Currículo não encontrado');
+
+  const result = await this.ai.generateCoverLetter(
+    resume.originalText,
+    jobDescription,
+  );
+
+  const formatted = this.format(result);
+
+  return this.prisma.coverLetter.create({
+    data: {
+      resumeId,
+      content: formatted,
+    },
+  });
+}
 
   list(userId: string, resumeId: string) {
     return this.prisma.coverLetter.findMany({
