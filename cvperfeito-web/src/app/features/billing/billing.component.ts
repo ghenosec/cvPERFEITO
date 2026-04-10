@@ -254,7 +254,7 @@ export class BillingComponent implements OnDestroy {
       name: 'Básico',
       price: 'R$ 4,90',
       description: 'Pronto para se candidatar.',
-      highlight: true,
+      highlight: false,
       cta: 'Comprar Básico',
       features: [
         { text: '5 análises completas', included: true },
@@ -273,7 +273,7 @@ export class BillingComponent implements OnDestroy {
       name: 'Premium',
       price: 'R$ 9,90',
       description: 'Para candidatos que querem se destacar.',
-      highlight: false,
+      highlight: true,
       cta: 'Comprar Premium',
       features: [
         { text: '15 análises completas', included: true },
