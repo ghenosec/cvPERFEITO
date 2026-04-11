@@ -17,6 +17,7 @@ import {
   BorderStyle,
 } from 'docx';
 import { hasFeature, PLANS } from '../commom/plans.config';
+import * as fileType from 'file-type';
 
 @Injectable()
 export class ResumesService {
@@ -26,32 +27,57 @@ export class ResumesService {
   ) {}
 
   async upload(userId: string, file: Express.Multer.File) {
-    if (!file) throw new BadRequestException('Nenhum arquivo enviado');
+  if (!file) throw new BadRequestException('Nenhum arquivo enviado');
 
-    const text = await extractText(file.buffer, file.mimetype, file.originalname);
-    if (!text || text.length < 50) {
-      throw new BadRequestException('Não foi possível extrair texto do arquivo');
-    }
-
-    const resume = await this.prisma.resume.create({
-      data: {
-        userId,
-        title: file.originalname,
-        originalText: text,
-        status: 'UPLOADED',
-      },
-    });
-
-    await this.prisma.resumeVersion.create({
-      data: {
-        resumeId: resume.id,
-        label: 'Original',
-        content: text,
-      },
-    });
-
-    return resume;
+  if (file.size > 7 * 1024 * 1024) {
+    throw new BadRequestException('Arquivo muito grande. Máximo 7MB.');
   }
+
+  const type = await fileType.fromBuffer(file.buffer);
+  const allowedMimes = [
+    'application/pdf',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  ];
+
+  const lowerName = (file.originalname || '').toLowerCase();
+  const isDocxByExtension = lowerName.endsWith('.docx');
+  const isPdfByMagic = type && type.mime === 'application/pdf';
+  const isDocxByMagic = type && (type.mime === 'application/zip' || type.mime === allowedMimes[1]);
+
+  if (!isPdfByMagic && !isDocxByMagic && !isDocxByExtension) {
+    throw new BadRequestException(
+      'Tipo de arquivo inválido. Envie um PDF ou DOCX.',
+    );
+  }
+
+  const text = await extractText(file.buffer, file.mimetype, file.originalname);
+  if (!text || text.length < 50) {
+    throw new BadRequestException('Não foi possível extrair texto do arquivo');
+  }
+
+  if (text.length > 50000) {
+    throw new BadRequestException('Currículo muito extenso. Máximo 50.000 caracteres.');
+  }
+
+  const resume = await this.prisma.resume.create({
+    data: {
+      userId,
+      title: file.originalname,
+      originalText: text,
+      status: 'UPLOADED',
+    },
+  });
+
+  await this.prisma.resumeVersion.create({
+    data: {
+      resumeId: resume.id,
+      label: 'Original',
+      content: text,
+    },
+  });
+
+  return resume;
+}
 
   async analyze(
   userId: string,
