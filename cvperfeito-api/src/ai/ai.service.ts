@@ -1,3 +1,4 @@
+import { sanitizeResumeText } from './sanitize';
 import { Injectable, Logger } from '@nestjs/common';
 import OpenAI from 'openai';
 import {
@@ -70,30 +71,34 @@ role, company, period, bullets, degree, school, and skills. Do not translate pro
   }
 
   generateCoverLetter(resumeText: string, jobDescription?: string) {
-    const payload = jobDescription
-      ? `CURRICULO:\n${resumeText}\n\nVAGA:\n${jobDescription}`
-      : `CURRICULO:\n${resumeText}`;
-    return this.callJson(COVER_LETTER_PROMPT, payload);
-  }
+  const clean = sanitizeResumeText(resumeText);
+  const payload = jobDescription
+    ? `CURRICULO:\n${clean}\n\nVAGA:\n${sanitizeResumeText(jobDescription)}`
+    : `CURRICULO:\n${clean}`;
+  return this.callJson(COVER_LETTER_PROMPT, payload);
+}
 
   async fullAnalysis(resumeText: string, jobDescription?: string) {
-    const tasks: Promise<any>[] = [
-      this.analyzeAts(resumeText),
-      this.rewriteResume(resumeText),
-      this.recruiterView(resumeText),
-      this.innovationTips(resumeText),
-    ];
-    if (jobDescription) tasks.push(this.matchJob(resumeText, jobDescription));
+  const cleanResume = sanitizeResumeText(resumeText);
+  const cleanJob = jobDescription ? sanitizeResumeText(jobDescription) : undefined;
 
-    const results = await Promise.all(tasks);
-    const [ats, rewritten, recruiter, innovation, jobMatch] = results;
+  const tasks: Promise<any>[] = [
+    this.analyzeAts(cleanResume),
+    this.rewriteResume(cleanResume),
+    this.recruiterView(cleanResume),
+    this.innovationTips(cleanResume),
+  ];
+  if (cleanJob) tasks.push(this.matchJob(cleanResume, cleanJob));
 
-    return {
-      ats: ats || {},
-      rewritten: rewritten || {},
-      recruiter: recruiter || {},
-      innovation: innovation || {},
-      jobMatch: jobMatch || null,
-    };
-  }
+  const results = await Promise.all(tasks);
+  const [ats, rewritten, recruiter, innovation, jobMatch] = results;
+
+  return {
+    ats: ats || {},
+    rewritten: rewritten || {},
+    recruiter: recruiter || {},
+    innovation: innovation || {},
+    jobMatch: jobMatch || null,
+  };
+}
 }
