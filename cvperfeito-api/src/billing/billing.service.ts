@@ -149,49 +149,65 @@ export class BillingService {
     });
   }
 
-  async handleWebhook(rawBody: Buffer | string) {
-    const body =
-      typeof rawBody === 'string' ? rawBody : rawBody?.toString('utf-8') || '';
+  async handleWebhook(rawBody: Buffer | string, signature?: string) {
+  const body =
+    typeof rawBody === 'string' ? rawBody : rawBody?.toString('utf-8') || '';
 
-    let payload: any;
-    try {
-      payload = JSON.parse(body);
-    } catch {
-      throw new BadRequestException('Invalid webhook payload');
+  const webhookSecret = process.env.ABACATEPAY_WEBHOOK_SECRET;
+  if (webhookSecret && signature) {
+    const crypto = require('crypto');
+    const expected = crypto
+      .createHmac('sha256', webhookSecret)
+      .update(body)
+      .digest('hex');
+    if (signature !== expected) {
+      this.logger.warn('Webhook rejected: invalid signature');
+      throw new BadRequestException('Invalid webhook signature');
     }
+  } else if (webhookSecret && !signature) {
+    this.logger.warn('Webhook rejected: missing signature');
+    throw new BadRequestException('Missing webhook signature');
+  }
 
-    this.logger.log(`Webhook received: ${payload.event}`);
+  let payload: any;
+  try {
+    payload = JSON.parse(body);
+  } catch {
+    throw new BadRequestException('Invalid webhook payload');
+  }
 
-    const event = payload.event || payload.type;
-    const data = payload.data || payload;
+  this.logger.log(`Webhook received: ${payload.event}`);
 
-    if (event === 'billing.paid' || event === 'pix.paid' || data?.status === 'PAID') {
-      const abacateId = data.id || data.billing?.id || data.pixQrCode?.id;
-      if (!abacateId) return { ok: false, reason: 'no id' };
+  const event = payload.event || payload.type;
+  const data = payload.data || payload;
 
-      const payment = await this.prisma.payment.findUnique({
-        where: { abacateId },
-      });
-      if (!payment) return { ok: false, reason: 'payment not found' };
+  if (event === 'billing.paid' || event === 'pix.paid' || data?.status === 'PAID') {
+    const abacateId = data.id || data.billing?.id || data.pixQrCode?.id;
+    if (!abacateId) return { ok: false, reason: 'no id' };
 
-      if (payment.status !== 'PAID') {
-        await this.applyPayment(payment.id);
-      }
-      return { ok: true };
+    const payment = await this.prisma.payment.findUnique({
+      where: { abacateId },
+    });
+    if (!payment) return { ok: false, reason: 'payment not found' };
+
+    if (payment.status !== 'PAID') {
+      await this.applyPayment(payment.id);
     }
-
-    if (event === 'billing.failed' || data?.status === 'FAILED') {
-      const abacateId = data.id;
-      if (abacateId) {
-        await this.prisma.payment.updateMany({
-          where: { abacateId },
-          data: { status: 'FAILED' },
-        });
-      }
-    }
-
     return { ok: true };
   }
+
+  if (event === 'billing.failed' || data?.status === 'FAILED') {
+    const abacateId = data.id;
+    if (abacateId) {
+      await this.prisma.payment.updateMany({
+        where: { abacateId },
+        data: { status: 'FAILED' },
+      });
+    }
+  }
+
+  return { ok: true };
+}
 
   private async applyPayment(paymentId: string) {
     const payment = await this.prisma.payment.findUnique({

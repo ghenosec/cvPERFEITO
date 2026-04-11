@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { BillingService } from './billing.service';
+import { SkipThrottle } from '@nestjs/throttler';
 
 @Controller('billing')
 export class BillingController {
@@ -47,13 +48,14 @@ export class BillingController {
     return this.service.checkPaymentStatus(req.user.userId, id);
   }
 
+  @SkipThrottle()
   @Post('webhook')
   webhook(
     @Req() req: any,
     @Headers('x-abacatepay-signature') signature: string,
     @Body() body: any,
-  ) {
-    const raw = req.body instanceof Buffer ? req.body : JSON.stringify(body || {});
-    return this.service.handleWebhook(raw);
-  }
+) {
+  const raw = req.body instanceof Buffer ? req.body : JSON.stringify(body || {});
+  return this.service.handleWebhook(raw);
+}
 }
