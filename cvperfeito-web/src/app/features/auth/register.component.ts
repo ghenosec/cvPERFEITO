@@ -44,11 +44,37 @@ import { AuthService } from '../../core/services/auth.service';
                 class="w-full rounded-xl border border-surface-border bg-white px-4 py-3 text-ink focus:border-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-hover/30">
             </div>
 
+            <div class="flex items-start gap-3 mt-4">
+              <input
+                type="checkbox"
+                [(ngModel)]="acceptedTerms"
+                class="mt-0.5 h-4 w-4 rounded border-surface-border text-brand-primary focus:ring-brand-primary">
+              <p class="text-xs text-ink-muted leading-relaxed">
+                Ao continuar, você declara que leu e concorda com nossos
+                <a routerLink="/termos" target="_blank" class="text-brand-primary underline">Termos de Uso</a>
+                e
+                <a routerLink="/privacidade" target="_blank" class="text-brand-primary underline">Política de Privacidade</a>,
+                autorizando o tratamento dos seus dados pessoais conforme descrito nesses documentos,
+                nos termos da Lei Geral de Proteção de Dados (LGPD).
+              </p>
+            </div>
+
             @if (error()) {
               <div class="rounded-xl bg-state-error/10 px-4 py-3 text-sm text-state-error">
                 {{ error() }}
               </div>
             }
+
+            <div class="flex items-start gap-2 mt-4">
+              <input type="checkbox" [(ngModel)]="acceptedTerms"
+                    class="mt-1 h-4 w-4 rounded border-surface-border text-brand-primary focus:ring-brand-primary">
+              <p class="text-xs text-ink-muted">
+                Li e concordo com os
+                <a href="/termos" target="_blank" class="text-brand-primary underline">Termos de Uso</a>
+                e a
+                <a href="/privacidade" target="_blank" class="text-brand-primary underline">Política de Privacidade</a>.
+              </p>
+            </div>
 
             <button
               (click)="submit()"
@@ -70,14 +96,19 @@ import { AuthService } from '../../core/services/auth.service';
 export class RegisterComponent {
   private auth = inject(AuthService);
   private router = inject(Router);
-
+  
   name = '';
   email = '';
   password = '';
   loading = signal(false);
   error = signal<string | null>(null);
+  acceptedTerms = false;
 
   submit() {
+    if (!this.acceptedTerms) {
+    this.error.set('Você precisa aceitar os Termos de Uso para continuar.');
+    return;
+}
     this.error.set(null);
     this.loading.set(true);
     this.auth.register(this.name, this.email, this.password).subscribe({
