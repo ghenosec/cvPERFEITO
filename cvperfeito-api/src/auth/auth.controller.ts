@@ -26,16 +26,20 @@ export class AuthController {
     return this.auth.login(dto);
   }
 
+  @Post('google')
+  googleLogin(@Body('idToken') idToken: string) {
+    return this.auth.googleLogin(idToken);
+  }
+
   @Get('me')
   @UseGuards(AuthGuard('jwt'))
   me(@Req() req: any) {
     return this.auth.me(req.user.userId);
   }
-  
+
   @Delete('account')
   @UseGuards(AuthGuard('jwt'))
   deleteAccount(@Req() req: any) {
     return this.auth.deleteAccount(req.user.userId);
-}
-
+  }
 }
