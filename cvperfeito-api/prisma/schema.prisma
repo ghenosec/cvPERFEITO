@@ -31,8 +31,10 @@ enum Plan {
 model User {
   id           String    @id @default(uuid())
   email        String    @unique
-  passwordHash String
   name         String
+  passwordHash String?
+  googleId     String?   @unique
+  avatar       String?
   plan         Plan      @default(FREE)
   creditsLeft  Int       @default(1)
   createdAt    DateTime  @default(now())
