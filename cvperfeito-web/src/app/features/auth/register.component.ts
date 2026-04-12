@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, inject, signal, AfterViewInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
@@ -18,6 +18,16 @@ import { AuthService } from '../../core/services/auth.service';
         </div>
 
         <div class="bg-white rounded-2xl shadow-sm border border-surface-border p-8">
+          <div class="flex justify-center mb-4">
+            <div id="google-btn-register"></div>
+          </div>
+
+          <div class="flex items-center gap-3 my-6">
+            <div class="flex-1 h-px bg-surface-border"></div>
+            <span class="text-xs text-ink-muted uppercase tracking-wider">ou</span>
+            <div class="flex-1 h-px bg-surface-border"></div>
+          </div>
+
           <div class="space-y-4">
             <div>
               <label class="block text-sm font-medium text-ink mb-2">Nome</label>
@@ -41,10 +51,11 @@ import { AuthService } from '../../core/services/auth.service';
                 [(ngModel)]="password"
                 type="password"
                 placeholder="Mínimo 6 caracteres"
+                (keydown.enter)="submit()"
                 class="w-full rounded-xl border border-surface-border bg-white px-4 py-3 text-ink focus:border-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-hover/30">
             </div>
 
-            <div class="flex items-start gap-3 mt-4">
+            <div class="flex items-start gap-3">
               <input
                 type="checkbox"
                 [(ngModel)]="acceptedTerms"
@@ -65,17 +76,6 @@ import { AuthService } from '../../core/services/auth.service';
               </div>
             }
 
-            <div class="flex items-start gap-2 mt-4">
-              <input type="checkbox" [(ngModel)]="acceptedTerms"
-                    class="mt-1 h-4 w-4 rounded border-surface-border text-brand-primary focus:ring-brand-primary">
-              <p class="text-xs text-ink-muted">
-                Li e concordo com os
-                <a href="/termos" target="_blank" class="text-brand-primary underline">Termos de Uso</a>
-                e a
-                <a href="/privacidade" target="_blank" class="text-brand-primary underline">Política de Privacidade</a>.
-              </p>
-            </div>
-
             <button
               (click)="submit()"
               [disabled]="loading()"
@@ -88,27 +88,38 @@ import { AuthService } from '../../core/services/auth.service';
             Já tem conta?
             <a routerLink="/auth/login" class="text-brand-primary font-medium hover:underline">Entrar</a>
           </p>
+
+          <p class="mt-3 text-center text-[10px] text-ink-muted leading-relaxed">
+            Ao usar "Continuar com Google", você aceita automaticamente os Termos de Uso e Política de Privacidade.
+          </p>
         </div>
       </div>
     </section>
   `,
 })
-export class RegisterComponent {
+export class RegisterComponent implements AfterViewInit {
   private auth = inject(AuthService);
   private router = inject(Router);
-  
+
   name = '';
   email = '';
   password = '';
+  acceptedTerms = false;
   loading = signal(false);
   error = signal<string | null>(null);
-  acceptedTerms = false;
+
+  ngAfterViewInit() {
+    setTimeout(() => {
+      this.auth.initGoogle(() => this.router.navigate(['/dashboard']));
+      this.auth.renderGoogleButton('google-btn-register');
+    }, 500);
+  }
 
   submit() {
     if (!this.acceptedTerms) {
-    this.error.set('Você precisa aceitar os Termos de Uso para continuar.');
-    return;
-}
+      this.error.set('Você precisa aceitar os Termos de Uso para continuar.');
+      return;
+    }
     this.error.set(null);
     this.loading.set(true);
     this.auth.register(this.name, this.email, this.password).subscribe({

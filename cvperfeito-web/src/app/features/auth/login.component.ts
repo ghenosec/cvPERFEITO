@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, inject, signal, AfterViewInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
@@ -18,6 +18,16 @@ import { AuthService } from '../../core/services/auth.service';
         </div>
 
         <div class="bg-white rounded-2xl shadow-sm border border-surface-border p-8">
+          <div class="flex justify-center mb-4">
+            <div id="google-btn-login"></div>
+          </div>
+
+          <div class="flex items-center gap-3 my-6">
+            <div class="flex-1 h-px bg-surface-border"></div>
+            <span class="text-xs text-ink-muted uppercase tracking-wider">ou</span>
+            <div class="flex-1 h-px bg-surface-border"></div>
+          </div>
+
           <div class="space-y-4">
             <div>
               <label class="block text-sm font-medium text-ink mb-2">Email</label>
@@ -33,6 +43,7 @@ import { AuthService } from '../../core/services/auth.service';
                 [(ngModel)]="password"
                 type="password"
                 placeholder="••••••••"
+                (keydown.enter)="submit()"
                 class="w-full rounded-xl border border-surface-border bg-white px-4 py-3 text-ink focus:border-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-hover/30">
             </div>
 
@@ -59,7 +70,7 @@ import { AuthService } from '../../core/services/auth.service';
     </section>
   `,
 })
-export class LoginComponent {
+export class LoginComponent implements AfterViewInit {
   private auth = inject(AuthService);
   private router = inject(Router);
 
@@ -67,6 +78,13 @@ export class LoginComponent {
   password = '';
   loading = signal(false);
   error = signal<string | null>(null);
+
+  ngAfterViewInit() {
+    setTimeout(() => {
+      this.auth.initGoogle(() => this.router.navigate(['/dashboard']));
+      this.auth.renderGoogleButton('google-btn-login');
+    }, 500);
+  }
 
   submit() {
     this.error.set(null);
