@@ -63,5 +63,15 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./features/billing/billing-success.component').then((m) => m.BillingSuccessComponent),
   },
+  {
+  path: 'termos',
+  loadComponent: () =>
+    import('./features/legal/termos.component').then((m) => m.TermosComponent),
+},
+{
+  path: 'privacidade',
+  loadComponent: () =>
+    import('./features/legal/privacidade.component').then((m) => m.PrivacidadeComponent),
+},
   { path: '**', redirectTo: 'dashboard' },
 ];
