@@ -55,6 +55,12 @@ export class AuthService {
     plan: user.plan,
     creditsLeft: user.creditsLeft,
   };
+  
+}
+
+async deleteAccount(userId: string) {
+  await this.prisma.user.delete({ where: { id: userId } });
+  return { ok: true, message: 'Conta excluída com sucesso.' };
 }
 
 private async buildResponse(user: any) {

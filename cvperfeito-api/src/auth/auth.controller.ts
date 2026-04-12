@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Post,
   Req,
@@ -30,4 +31,11 @@ export class AuthController {
   me(@Req() req: any) {
     return this.auth.me(req.user.userId);
   }
+  
+  @Delete('account')
+  @UseGuards(AuthGuard('jwt'))
+  deleteAccount(@Req() req: any) {
+    return this.auth.deleteAccount(req.user.userId);
+}
+
 }
