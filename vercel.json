@@ -1,8 +1,11 @@
 {
-  "routes": [
+  "buildCommand": "cd cvperfeito-web && npm install && npm run build",
+  "outputDirectory": "cvperfeito-web/dist/cvperfeito-web/browser",
+  "framework": null,
+  "rewrites": [
     {
-      "src": "/(.*)",
-      "dest": "/index.html"
+      "source": "/(.*)",
+      "destination": "/index.html"
     }
   ]
 }
