@@ -181,17 +181,6 @@ interface PlanCard {
               <div class="mt-5 rounded-xl bg-brand-primary/5 px-4 py-3 text-center text-xs text-ink-muted">
                 Aguardando pagamento... verificando a cada 5s
               </div>
-
-              <div class="mt-4 rounded-xl bg-state-success/5 border border-dashed border-state-success/40 p-4">
-                <p class="text-[10px] text-ink-muted mb-3 text-center uppercase tracking-wider font-semibold">
-                  Modo de desenvolvimento
-                </p>
-                <button (click)="simulate(pix.paymentId)"
-                        [disabled]="simulating()"
-                        class="w-full rounded-xl border-2 border-dashed border-state-success text-state-success py-2.5 text-sm font-semibold hover:bg-state-success hover:text-white transition disabled:opacity-50">
-                  {{ simulating() ? 'Simulando...' : 'Simular pagamento (dev)' }}
-                </button>
-              </div>
             </div>
 
             <button (click)="cancel()" class="mt-4 w-full text-sm text-ink-muted hover:text-ink transition">
@@ -209,7 +198,6 @@ export class BillingComponent implements OnDestroy {
   private router = inject(Router);
 
   loading = signal(false);
-  simulating = signal(false);
   error = signal<string | null>(null);
   pixData = signal<PixResponse | null>(null);
   copied = signal(false);
@@ -330,34 +318,17 @@ export class BillingComponent implements OnDestroy {
     setTimeout(() => this.copied.set(false), 2000);
   }
 
-  simulate(paymentId: string) {
-    this.error.set(null);
-    this.simulating.set(true);
-    this.billing.simulate(paymentId).subscribe({
-      next: () => {
-        if (this.pollHandle) clearInterval(this.pollHandle);
-        this.auth.fetchMe().subscribe();
-        this.simulating.set(false);
-        this.router.navigate(['/billing/success']);
-      },
-      error: (err) => {
-        this.simulating.set(false);
-        this.error.set(err?.error?.message || 'Erro ao simular pagamento');
-      },
-    });
-  }
-
   private startPolling(paymentId: string) {
-    this.pollHandle = setInterval(() => {
-      this.billing.check(paymentId).subscribe((res) => {
-        if (res.status === 'PAID') {
-          clearInterval(this.pollHandle);
-          this.auth.fetchMe().subscribe();
-          this.router.navigate(['/billing/success']);
-        }
-      });
-    }, 5000);
-  }
+  this.pollHandle = setInterval(() => {
+    this.billing.check(paymentId).subscribe((res) => {
+      if (res.status === 'PAID') {
+        clearInterval(this.pollHandle);
+        this.auth.fetchMe().subscribe();
+        this.router.navigate(['/billing/success']);
+      }
+    });
+  }, 5000);
+}
 
   ngOnDestroy() {
     if (this.pollHandle) clearInterval(this.pollHandle);
