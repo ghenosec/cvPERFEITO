@@ -155,7 +155,7 @@ interface PlanCard {
             <div class="rounded-2xl bg-white border border-surface-border p-8">
               <div class="text-center mb-6">
                 <p class="text-xs font-bold uppercase tracking-wider text-brand-primary">Plano {{ pix.planName }}</p>
-                <h2 class="mt-2 text-3xl font-bold text-ink">R$ {{ (pix.amount / 100).toFixed(2).replace('.', ',') }}</h2>
+                <h2 class="mt-2 text-3xl font-bold text-ink">R$ {{ pix.amount.toFixed(2).replace('.', ',') }}</h2>
                 <p class="mt-1 text-sm text-ink-muted">{{ pix.credits }} análises completas</p>
               </div>
 
@@ -170,9 +170,9 @@ interface PlanCard {
               <div class="space-y-3">
                 <p class="text-xs font-semibold text-ink-muted uppercase tracking-wider">Ou use o código copia-e-cola:</p>
                 <div class="rounded-xl bg-surface-muted p-3 break-all text-[10px] text-ink-muted font-mono">
-                  {{ pix.copyPaste }}
+                  {{ pix.qrCode }}
                 </div>
-                <button (click)="copy(pix.copyPaste)"
+                <button (click)="copy(pix.qrCode)"
                         class="w-full rounded-xl border border-brand-primary text-brand-primary py-2.5 text-sm font-semibold hover:bg-brand-primary hover:text-white transition">
                   {{ copied() ? 'Copiado!' : 'Copiar código' }}
                 </button>

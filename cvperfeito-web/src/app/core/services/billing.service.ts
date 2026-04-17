@@ -6,15 +6,12 @@ export type PlanKey = 'BASIC' | 'PREMIUM';
 
 export interface PixResponse {
   paymentId: string;
-  abacateId: string;
   amount: number;
   planName: string;
-  plan: PlanKey;
   credits: number;
+  qrCode: string;
   qrCodeBase64: string;
-  copyPaste: string;
   expiresAt: string;
-  status: string;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -27,10 +24,6 @@ export class BillingService {
       `${this.api}/billing/checkout/${plan}`,
       {},
     );
-  }
-
-  simulate(paymentId: string) {
-    return this.http.post(`${this.api}/billing/payments/${paymentId}/simulate`, {});
   }
 
   payments() {
