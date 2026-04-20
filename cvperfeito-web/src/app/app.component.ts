@@ -14,7 +14,9 @@ import { AuthService } from './core/services/auth.service';
           <div class="mx-auto max-w-7xl px-6 py-4 flex items-center justify-between">
             <a routerLink="/dashboard" class="flex items-center gap-2">
               <div class="h-8 w-8 rounded-lg bg-brand-primary flex items-center justify-center text-white font-bold">cv</div>
-              <span class="font-bold text-lg text-ink">cvPERFEITO</span>
+              <span class="font-bold text-lg">
+                <span class="text-black">cv</span><span class="text-brand-primary">PERFEITO</span>
+              </span>
             </a>
             <nav class="flex items-center gap-6">
               <a routerLink="/dashboard" class="text-sm text-ink-muted hover:text-brand-primary transition">Dashboard</a>
