@@ -102,11 +102,9 @@ Design inspirado em Notion, Linear e Stripe — minimalista, bordas arredondadas
 - [x] Versão em inglês automática
 - [x] Link público compartilhável
 - [x] Preview bloqueado com blur no plano gratuito
-- [ ] Testes E2E
-- [ ] Landing page pública
-- [ ] Gráfico de evolução do ATS score
-- [ ] Múltiplos templates de PDF
-- [ ] Análise específica por área (Tech, Marketing, Financeiro)
+- [x] Landing page pública
+- [x] Gráfico de evolução do ATS score
+- [x] Análise específica por área (Tech, Marketing, Financeiro)
 
 ## Licença
    
